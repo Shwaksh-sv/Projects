@@ -1,0 +1,113 @@
+enb.NDLRB = 6;                % No of Downlink Resource Blocks(DL-RB)
+enb.CyclicPrefix = 'Normal';  % CP length
+enb.PHICHDuration = 'Normal'; % Normal PHICH duration
+enb.DuplexMode = 'FDD';       % FDD duplex mode
+enb.CFI = 3;                  % 4 PDCCH symbols
+enb.Ng = 'Sixth';             % HICH groups
+enb.CellRefP = 4;             % 4-antenna ports
+enb.NCellID = 10;             % Cell id
+enb.NSubframe = 0;            % Subframe number 0
+subframe = lteDLResourceGrid(enb);
+cfiBits = lteCFI(enb);
+pcfichSymbols = ltePCFICH(enb, cfiBits);
+pcfichIndices = ltePCFICHIndices(enb);
+
+% Map PCFICH symbols to resource grid
+subframe(pcfichIndices) = pcfichSymbols;
+surf(abs(subframe(:,:,1)));
+view(2);
+axis tight;
+xlabel('OFDM Symbol');
+ylabel('Subcarrier Index');
+title('Resource grid');
+
+cellRsSym = lteCellRS(enb);
+cellRsInd = lteCellRSIndices(enb);
+subframe(cellRsInd ) = cellRsSym;
+
+surf(abs(subframe(:,:,1)));
+view(2);
+axis tight;
+xlabel('OFDM Symbol');
+ylabel('Subcarrier Index');
+title('Resource grid');
+
+pssSym = ltePSS(enb);
+sssSym = lteSSS(enb);
+pssInd = ltePSSIndices(enb);
+sssInd = lteSSSIndices(enb);
+subframe(pssInd)=pssSym;
+subframe(sssInd)=sssSym;
+
+surf(abs(subframe(:,:,1)));
+view(2);
+axis tight;
+xlabel('OFDM Symbol');
+ylabel('Subcarrier Index');
+title('Resource grid');
+
+HIValue = [0 0 1];
+phichSymbols = ltePHICH(enb,HIValue);
+phichIndices = ltePHICHIndices(enb);
+subframe(phichIndices)=phichSymbols;
+
+surf(abs(subframe(:,:,1)));
+view(2);
+axis tight;
+xlabel('OFDM Symbol');
+ylabel('Subcarrier Index');
+title('Resource grid');
+
+pdsch.NLayers = 4;                       % No of layers
+pdsch.TxScheme = 'TxDiversity';          % Transmission scheme
+pdsch.Modulation = 'QPSK';               % Modulation scheme
+pdsch.RNTI = 1;                          % 16-bit UE-specific mask
+pdsch.RV = 0;                        
+pdcchInfo = ltePDCCHInfo(enb);    % Get the total resources for PDCCH
+pdcchBits = -1*ones(pdcchInfo.MTot, 1); % Initialized with -1
+
+pdsch.PRBSet = (0:enb.NDLRB-1).';   % Subframe resource allocation
+[pdschIndices,pdschInfo] = ...
+ltePDSCHIndices(enb, pdsch, pdsch.PRBSet, {'1based'});
+
+pdschSymbols = ltePDSCH(enb, pdsch, codedTrBlock);
+
+% Performing search space for UE-specific control channel candidates
+candidates = ltePDCCHSpace(enb, pdcch, {'bits','1based'});
+
+% Mapping PDCCH payload on available UE-specific candidate. In this example
+% the first available candidate is used to map the coded DCI bits.
+pdcchBits( candidates(1, 1) : candidates(1, 2) ) = codedDciBits;
+
+codedTrBlkSize = pdschInfo.G;   % Available PDSCH bits
+
+transportBlkSize = 152;                % Transport block size
+dlschTransportBlk = randi([0 1], transportBlkSize, 1);
+
+% Perform Channel Coding
+codedTrBlock = lteDLSCH(enb, pdsch, codedTrBlkSize, dlschTransportBlk);
+pdcch.NDLRB = enb.NDLRB;  % Number of DL-RB in total BW
+pdcch.RNTI = pdsch.RNTI;  % 16-bit value number
+pdcch.PDCCHFormat = 0;    % 1-CCE of aggregation level 1
+
+% Performing DCI message bits coding to form coded DCI bits
+codedDciBits = lteDCIEncode(pdcch, dciMessageBits);
+
+pdcchInfo = ltePDCCHInfo(enb);    % Get the total resources for PDCCH
+pdcchBits = -1*ones(pdcchInfo.MTot, 1); % Initialized with -1
+
+% Performing search space for UE-specific control channel candidates
+candidates = ltePDCCHSpace(enb, pdcch, {'bits','1based'});
+
+% Mapping PDCCH payload on available UE-specific candidate. In this example
+% the first available candidate is used to map the coded DCI bits.
+pdcchBits( candidates(1, 1) : candidates(1, 2) ) = codedDciBits;
+           
+subframe(pdschIndices) = pdschSymbols;
+
+surf(abs(subframe(:,:,1)));
+view(2);
+axis tight;
+xlabel('OFDM Symbol');
+ylabel('Subcarrier Index');
+title('Resource grid');
